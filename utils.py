@@ -7,7 +7,7 @@ import json
 def to_safe_string(value):
     try:
         if isinstance(value, (dict, list)):
-            return json.dumps(value, sort_keys=True)
+            return json.dumps(value, sort_keys=True) 
         return str(value)
     except:
         return "unknown"
