@@ -2,7 +2,7 @@ from svacs_adapter import prepare_signal
 from validator import validate_signal
 from sanskar_simple import analyze_svacs
 
-
+ 
 # -------------------------------
 # SAMPLE EVENT (SVACS INPUT)
 # -------------------------------
