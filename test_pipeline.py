@@ -8,7 +8,7 @@ from pipeline import run_pipeline
 # 1. VALID (LOW RISK)
 event1 = {
     "event_id": "E1",
-    "timestamp": "2026-04-20T10:00:00",
+    "timestamp": "2026-04-20T10:00:00", 
     "vessel": {
         "type": "cargo",
         "confidence_score": 0.8
