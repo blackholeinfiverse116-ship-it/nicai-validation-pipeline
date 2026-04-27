@@ -8,7 +8,7 @@ import uuid
 # -----------------------------------
 def generate_trace_id():
     return "TRACE_" + uuid.uuid4().hex[:12]
-
+ 
 
 # -----------------------------------
 # BASIC INPUT VALIDATION
