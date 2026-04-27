@@ -10,7 +10,7 @@ from sanskar_simple import generate_intelligence
 # -----------------------------
 def send_to_state_engine(event):
     print("📡 Sent to State Engine:", event)
-
+ 
 
 # -----------------------------
 # FULL PIPELINE
