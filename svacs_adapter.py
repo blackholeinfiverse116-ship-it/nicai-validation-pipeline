@@ -1,6 +1,13 @@
 # svacs_adapter.py
 
-from utils import generate_trace_id
+import uuid
+
+
+# -----------------------------------
+# TRACE ID GENERATOR (NO utils needed)
+# -----------------------------------
+def generate_trace_id():
+    return "TRACE_" + uuid.uuid4().hex[:12]
 
 
 # -----------------------------------
@@ -44,7 +51,8 @@ def convert_perception_to_signal(event: dict):
         # NICAI FORMAT
         "asset_id": vessel.get("type", "unknown"),
         "signal_type": "acoustic_detection",
-        "dataset_id": "svacs",   # ✅ CRITICAL FIX
+        "feature_type": "acoustic",   # ✅ REQUIRED FIX
+        "dataset_id": "svacs",
         "source": "svacs",
 
         # CONTEXT
@@ -76,8 +84,8 @@ def prepare_signal(event: dict):
 
     signal = convert_perception_to_signal(event)
 
-    # Generate deterministic trace_id AFTER full signal creation
-    trace_id = generate_trace_id(signal)
+    # Generate trace_id
+    trace_id = generate_trace_id()
 
     signal["trace_id"] = trace_id
 
