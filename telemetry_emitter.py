@@ -5,7 +5,7 @@ from datetime import datetime
 def emit_telemetry(signal, result):
     """
     Emit telemetry data for InsightFlow observability
-    """
+    """ 
 
     telemetry_record = {
         "trace_id": result["trace_id"],
