@@ -7,7 +7,7 @@ try:
     from bucket_emitter import emit_bucket_artifact
     from telemetry_emitter import emit_telemetry
 except ImportError:
-    def emit_bucket_artifact(x): pass
+    def emit_bucket_artifact(x): pass 
     def emit_telemetry(a, b): pass
 
 
