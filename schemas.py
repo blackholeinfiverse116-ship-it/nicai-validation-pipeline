@@ -1,7 +1,7 @@
 required_fields = [
     "signal_id",
     "timestamp",
-    "latitude",
+    "latitude", 
     "longitude",
     "feature_type",   
     "value",
