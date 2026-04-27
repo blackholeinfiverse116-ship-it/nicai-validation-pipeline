@@ -6,7 +6,7 @@
 
 NICAI is a **deterministic validation and intelligence pipeline** designed to process **SVACS acoustic perception events**, validate them using existing NICAI logic, and generate structured intelligence outputs for downstream systems.
 
-This system strictly follows:
+This system strictly follows: 
 
 * ✔ No ML / AI models
 * ✔ No probabilistic logic
