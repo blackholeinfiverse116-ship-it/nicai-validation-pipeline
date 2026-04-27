@@ -10,7 +10,7 @@ DATASET_FILE = "datasets.json"
 _DATASET_CACHE = None
 
 def load_datasets():
-    global _DATASET_CACHE
+    global _DATASET_CACHE 
 
     if _DATASET_CACHE is not None:
         return _DATASET_CACHE
