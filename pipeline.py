@@ -1,3 +1,5 @@
+# pipeline.py
+
 from svacs_adapter import prepare_signal
 from validator import validate_signal
 from sanskar_simple import generate_intelligence
@@ -15,7 +17,9 @@ def send_to_state_engine(event):
 # -----------------------------
 def run_pipeline(event):
 
-    # STEP 1: Adapter
+    print("\n-------------------------------")
+
+    # STEP 1: Adapter (SVACS → NICAI)
     adapted = prepare_signal(event)
 
     if adapted.get("status") == "ERROR":
@@ -27,15 +31,17 @@ def run_pipeline(event):
 
     print("✅ Signal:", signal)
 
-    # STEP 2: Validation
+    # STEP 2: Validation (NICAI reuse)
     validation = validate_signal(signal)
     print("✅ Validation:", validation)
 
-    if validation.get("status") == "ERROR":
-        print("❌ Validation Failed — Stopping pipeline")
+    # 🚨 CRITICAL RULE (TASK COMPLIANCE)
+    # If NOT valid → STOP
+    if validation.get("status") != "ALLOW":
+        print("❌ Validation Failed — STOPPING PIPELINE")
         return
 
-    # STEP 3: Intelligence
+    # STEP 3: Intelligence (Sanskar simplified)
     intelligence = generate_intelligence(signal, trace_id)
     print("✅ Intelligence:", intelligence)
 
