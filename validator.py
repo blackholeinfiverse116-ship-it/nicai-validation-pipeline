@@ -1,10 +1,8 @@
 from schemas import required_fields
 from dataset_registry import get_dataset
-from utils import generate_trace_id, validate_output_schema
+from utils import validate_output_schema
 
-# -----------------------------------
-# SAFE OPTIONAL IMPORTS
-# -----------------------------------
+# OPTIONAL SAFE IMPORTS
 try:
     from bucket_emitter import emit_bucket_artifact
     from telemetry_emitter import emit_telemetry
@@ -13,125 +11,131 @@ except ImportError:
     def emit_telemetry(a, b): pass
 
 
-# -----------------------------------
-# ERROR FORMAT
-# -----------------------------------
-def build_error(reason, trace_id=None, signal=None):
-
-    signal_id = "UNKNOWN"
-
-    if isinstance(signal, dict):
-        signal_id = signal.get("signal_id") or "UNKNOWN"
-
-    return {
-        "signal_id": signal_id,
-        "status": "ERROR",
+# -------------------------------
+# STANDARD REJECT FORMAT (STRICT)
+# -------------------------------
+def build_reject(reason, trace_id=None, signal=None):
+    result = {
+        "signal_id": signal.get("signal_id") if isinstance(signal, dict) else None,
+        "status": "REJECT",
         "confidence_score": 0.0,
-        "trace_id": trace_id,
-        "reason": reason
+        "trace_id": trace_id or "TRACE_UNKNOWN",
+        "reason": str(reason)
     }
 
+    try:
+        validate_output_schema(result)
+        emit_bucket_artifact(result)
+        emit_telemetry(signal, result)
+    except:
+        pass
 
-# -----------------------------------
-# BUCKET LOGGER
-# -----------------------------------
-def log_to_bucket(signal, result, trace_id):
-
-    emit_bucket_artifact({
-        "trace_id": trace_id,
-        "type": "validation_event",
-        "layer": "NICAI_VALIDATION",   # ✅ FIXED
-        "input": signal,
-        "output": result,
-        "timestamp": signal.get("timestamp")
-    })
+    return result
 
 
-# -----------------------------------
-# TELEMETRY
-# -----------------------------------
-def send_telemetry(signal, result):
-    emit_telemetry(signal, result)
-
-
-# -----------------------------------
-# VALIDATION LOGIC
-# -----------------------------------
+# -------------------------------
+# VALIDATE SINGLE SIGNAL
+# -------------------------------
 def validate_signal(signal):
-
-    trace_id = None
 
     try:
         if not isinstance(signal, dict):
-            return build_error("Invalid signal format", None, signal)
+            return build_reject("Invalid signal format")
 
-        trace_id = signal.get("trace_id") or generate_trace_id(signal)
+        # ✅ FIX: USE EXISTING TRACE ID
+        trace_id = signal.get("trace_id", "TRACE_UNKNOWN")
 
-        # REQUIRED FIELDS
+        # -------------------------------
+        # REQUIRED FIELDS CHECK
+        # -------------------------------
         for field in required_fields:
             if field not in signal or signal.get(field) in [None, ""]:
-                result = build_error(f"Missing field: {field}", trace_id, signal)
+                return build_reject(f"Missing field: {field}", trace_id, signal)
 
-                validate_output_schema(result)
-                log_to_bucket(signal, result, trace_id)
-                send_telemetry(signal, result)
+        # -------------------------------
+        # DATASET CHECK
+        # -------------------------------
+        dataset_id = signal.get("dataset_id")
 
-                return result
+        if not isinstance(dataset_id, (str, int)):
+            return build_reject("Invalid dataset_id type", trace_id, signal)
 
-        value = signal.get("value")
+        dataset = get_dataset(dataset_id)
 
-        if not isinstance(value, (int, float)) or not (0 <= value <= 1):
-            result = build_error("Value must be 0–1", trace_id, signal)
+        if not isinstance(dataset, dict):
+            return build_reject("Dataset not registered", trace_id, signal)
+
+        # -------------------------------
+        # DATASET STATUS
+        # -------------------------------
+        if dataset.get("status") != "active":
+            result = {
+                "signal_id": signal.get("signal_id"),
+                "status": "FLAG",
+                "confidence_score": dataset.get("trust_score", 0.5),
+                "trace_id": trace_id,
+                "reason": "Dataset inactive"
+            }
 
             validate_output_schema(result)
-            log_to_bucket(signal, result, trace_id)
-            send_telemetry(signal, result)
+            emit_bucket_artifact(result)
+            emit_telemetry(signal, result)
 
             return result
 
-        dataset_id = signal.get("dataset_id")
+        # -------------------------------
+        # FEATURE VALIDATION
+        # -------------------------------
+        value = signal.get("value")
+        feature = str(signal.get("feature_type", "")).lower()
 
-        if dataset_id:
-            dataset = get_dataset(dataset_id)
+        if not isinstance(value, (int, float)):
+            return build_reject("Invalid value type", trace_id, signal)
 
-            if dataset is None:
-                result = build_error("Dataset not registered", trace_id, signal)
+        # -------------------------------
+        # RULE LOGIC (KEEP SIMPLE)
+        # -------------------------------
+        if feature == "temperature":
+            if value >= 35:
+                status = "FLAG"
+                confidence = 0.7
+                reason = "Temperature anomaly"
+            else:
+                status = "ALLOW"
+                confidence = 0.9
+                reason = "Normal temperature"
 
-                validate_output_schema(result)
-                log_to_bucket(signal, result, trace_id)
-                send_telemetry(signal, result)
+        elif feature == "aqi":
+            if value >= 150:
+                status = "FLAG"
+                confidence = 0.7
+                reason = "AQI anomaly"
+            else:
+                status = "ALLOW"
+                confidence = 0.9
+                reason = "Normal AQI"
 
-                return result
+        elif feature == "traffic":
+            if value >= 70:
+                status = "FLAG"
+                confidence = 0.7
+                reason = "Traffic anomaly"
+            else:
+                status = "ALLOW"
+                confidence = 0.9
+                reason = "Normal traffic"
 
-            if dataset.get("status") != "active":
-                result = {
-                    "signal_id": signal.get("signal_id") or "UNKNOWN",
-                    "status": "FLAG",
-                    "confidence_score": dataset.get("trust_score", 0.5),
-                    "trace_id": trace_id,
-                    "reason": "Dataset inactive"
-                }
-
-                validate_output_schema(result)
-                log_to_bucket(signal, result, trace_id)
-                send_telemetry(signal, result)
-
-                return result
-
-        # FEATURE LOGIC
-        feature = str(signal.get("signal_type", "")).lower()
-
-        if feature == "acoustic_detection":
-            status = "VALID"
-            confidence = float(value)
-            reason = f"Valid acoustic signal with confidence {value}"
         else:
-            status = "VALID"
+            # ✅ Your SVACS acoustic case will come here
+            status = "ALLOW"
             confidence = 0.8
             reason = "Valid signal"
 
+        # -------------------------------
+        # FINAL OUTPUT
+        # -------------------------------
         result = {
-            "signal_id": signal.get("signal_id") or "UNKNOWN",
+            "signal_id": signal.get("signal_id"),
             "status": status,
             "confidence_score": confidence,
             "trace_id": trace_id,
@@ -139,33 +143,65 @@ def validate_signal(signal):
         }
 
         validate_output_schema(result)
-        log_to_bucket(signal, result, trace_id)
-        send_telemetry(signal, result)
+        emit_bucket_artifact(result)
+        emit_telemetry(signal, result)
 
         return result
 
     except Exception as e:
-
-        result = build_error(str(e), trace_id, signal)
-
-        log_to_bucket(signal, result, trace_id)
-        send_telemetry(signal, result)
-
-        return result
+        return build_reject(str(e), None, signal)
 
 
-# -----------------------------------
-# BATCH VALIDATION
-# -----------------------------------
+# -------------------------------
+# VALIDATE BATCH
+# -------------------------------
 def validate_batch(signals):
 
-    if not isinstance(signals, list):
+    try:
+        if not isinstance(signals, list):
+            return {
+                "status": "REJECT",
+                "reason": "Input must be list",
+                "trace_id": None
+            }
+
+        safe_signals = [s for s in signals if isinstance(s, dict)]
+        safe_signals.sort(key=lambda x: str(x.get("signal_id", "")))
+
+        results = [validate_signal(s) for s in safe_signals]
+
         return {
-            "status": "ERROR",
-            "reason": "Input must be list",
+            "status": "SUCCESS",
+            "results": results
+        }
+
+    except Exception as e:
+        return {
+            "status": "REJECT",
+            "reason": str(e),
             "trace_id": None
         }
 
-    signals = sorted(signals, key=lambda x: x.get("signal_id", ""))
 
-    return {"results": [validate_signal(s) for s in signals]}
+# -------------------------------
+# FILTER VALID SIGNALS
+# -------------------------------
+def get_validated_signals(signals):
+
+    try:
+        batch = validate_batch(signals)
+
+        if batch.get("status") == "REJECT":
+            return batch
+
+        return [
+            r for r in batch.get("results", [])
+            if isinstance(r, dict) and r.get("status") in ["ALLOW", "FLAG"]
+        ]
+
+    except Exception as e:
+        return {
+            "status": "REJECT",
+            "reason": str(e),
+            "trace_id": None
+        }
