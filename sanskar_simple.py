@@ -1,3 +1,4 @@
+# OPTIONAL SAFE IMPORT
 try:
     from bucket_emitter import emit_bucket_artifact
 except ImportError:
@@ -5,54 +6,62 @@ except ImportError:
         pass
 
 
-# ----------------------------------- 
-# RISK LEVEL ENGINE
 # -----------------------------------
-def get_risk_level(confidence, vessel_type):
+# RISK LEVEL ENGINE (TASK ALIGNED)
+# -----------------------------------
+def get_risk_level(confidence):
 
-    if vessel_type == "unknown" or confidence < 0.3:
-        return "CRITICAL"
-    elif confidence < 0.5:
-        return "HIGH"
-    elif confidence < 0.75:
-        return "MEDIUM"
-    else:
+    if confidence >= 0.75:
         return "LOW"
+    elif confidence >= 0.5:
+        return "MEDIUM"
+    elif confidence >= 0.3:
+        return "HIGH"
+    else:
+        return "CRITICAL"
 
 
 # -----------------------------------
-# ANOMALY DETECTOR
+# ANOMALY DETECTOR (STRICT TASK ALIGNMENT)
 # -----------------------------------
-def detect_anomaly(vessel_type, metadata):
+def detect_anomaly(signal):
+
+    vessel_type = signal.get("asset_id", "unknown")
+    metadata = signal.get("metadata", {})
+
+    incoming_flag = metadata.get("anomaly_flag", False)
+
+    # ✅ anomaly priority rules
+    if incoming_flag is True:
+        return True
 
     if vessel_type == "unknown":
         return True
-
-    if isinstance(metadata, dict):
-        if metadata.get("pattern_flag") == "inconsistent":
-            return True
 
     return False
 
 
 # -----------------------------------
-# EXPLANATION ENGINE
+# EXPLANATION ENGINE (CONSISTENT + PRIORITY BASED)
 # -----------------------------------
 def generate_explanation(confidence, vessel_type, risk, anomaly):
 
+    # ✅ ALWAYS FIRST: anomaly override
+    if anomaly:
+        return "Anomalous acoustic pattern detected — classified as critical risk"
+
+    # secondary critical case
     if vessel_type == "unknown":
         return "Unknown vessel detected — classified as critical risk"
 
-    if anomaly:
-        return "Inconsistent acoustic pattern detected — possible anomaly"
-
-    if confidence < 0.3:
+    # risk-based explanations
+    if risk == "CRITICAL":
         return "Very low confidence acoustic detection — critical risk"
 
-    if confidence < 0.5:
+    if risk == "HIGH":
         return "Low confidence acoustic detection — high risk"
 
-    if confidence < 0.75:
+    if risk == "MEDIUM":
         return "Moderate confidence acoustic detection — medium risk"
 
     return f"High confidence acoustic classification of {vessel_type} vessel — low risk"
@@ -74,19 +83,44 @@ def log_intelligence(signal, intelligence):
 
 
 # -----------------------------------
-# MAIN INTELLIGENCE ENGINE
+# MAIN INTELLIGENCE ENGINE (FINAL)
 # -----------------------------------
-def generate_intelligence(signal, trace_id):
+def analyze_signal(signal):
 
     try:
-        confidence = signal.get("value", 0.0)
+        # ✅ DO NOT CREATE NEW TRACE ID
+        trace_id = signal.get("trace_id", "TRACE_UNKNOWN")
+
+        confidence = float(signal.get("value", 0.0))
         vessel_type = signal.get("asset_id", "unknown")
-        metadata = signal.get("metadata", {})
 
-        risk = get_risk_level(confidence, vessel_type)
-        anomaly = detect_anomaly(vessel_type, metadata)
-        explanation = generate_explanation(confidence, vessel_type, risk, anomaly)
+        # -------------------------------
+        # ANOMALY FIRST (IMPORTANT)
+        # -------------------------------
+        anomaly = detect_anomaly(signal)
 
+        # -------------------------------
+        # RISK LOGIC
+        # -------------------------------
+        risk = get_risk_level(confidence)
+
+        # ✅ TASK RULE: anomaly overrides everything
+        if anomaly:
+            risk = "CRITICAL"
+
+        # -------------------------------
+        # EXPLANATION
+        # -------------------------------
+        explanation = generate_explanation(
+            confidence,
+            vessel_type,
+            risk,
+            anomaly
+        )
+
+        # -------------------------------
+        # FINAL OUTPUT
+        # -------------------------------
         intelligence = {
             "trace_id": trace_id,
             "vessel_type": vessel_type,
@@ -102,17 +136,14 @@ def generate_intelligence(signal, trace_id):
 
     except Exception as e:
         return {
-            "trace_id": trace_id,
+            "trace_id": signal.get("trace_id", "TRACE_UNKNOWN"),
             "status": "ERROR",
             "reason": str(e)
         }
 
 
 # -----------------------------------
-# REQUIRED WRAPPER (FIX FOR YOUR ERROR)
+# BACKWARD COMPATIBILITY WRAPPER
 # -----------------------------------
-def analyze_svacs(signal, trace_id):
-    """
-    Required entry point for SVACS test pipeline
-    """
-    return generate_intelligence(signal, trace_id)
+def analyze_svacs(signal, trace_id=None):
+    return analyze_signal(signal)
