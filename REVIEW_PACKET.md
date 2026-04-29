@@ -1,131 +1,146 @@
-# 🧾 NICAI – SVACS Pipeline Review Packet
+# 🧾 NICAI – SVACS Acoustic Intelligence Pipeline (Final Review Packet)
+
+---
 
 ## 📌 Project Name
 
-**NICAI + Sanskar Deterministic Intelligence Pipeline for SVACS Acoustic Signals**
- 
+**NICAI + Sanskar Deterministic Intelligence Layer for SVACS Perception Events**
+
 ---
 
 ## 🎯 Objective
 
-To implement a **deterministic, traceable, and production-ready pipeline** that:
+To build a **deterministic, traceable, and real-time pipeline** that:
 
-* Accepts `perception_event` from SVACS Acoustic Node
-* Converts it into NICAI-compatible signal
-* Reuses NICAI validation (no redesign)
-* Applies simplified Sanskar intelligence rules
-* Outputs structured intelligence_event
-* Sends result to State Engine
-* Logs all stages into Bucket + Telemetry
+- Accepts live `perception_event`
+- Validates input using NICAI rules (no redesign)
+- Generates structured `intelligence_event`
+- Preserves traceability via `trace_id`
+- Sends output to State Engine
+- Logs all stages into Bucket + Telemetry
 
 ---
 
 ## ⚠️ IMPORTANT CONSTRAINTS (STRICTLY FOLLOWED)
 
-* ❌ NICAI NOT rebuilt
-* ❌ Schemas NOT redesigned
-* ❌ NO ML / probabilistic logic used
-* ❌ NO delay for perfect data
-* ✅ Fully deterministic system
-* ✅ Traceable via trace_id
+- ❌ NICAI NOT redesigned
+- ❌ No schema modification
+- ❌ No ML / probabilistic logic
+- ❌ No pipeline blocking
+- ✅ Deterministic logic only
+- ✅ Real-time processing
+- ✅ Trace ID preserved end-to-end
+- ✅ Invalid inputs logged (no silent failure)
 
 ---
 
 ## 🧠 SYSTEM ARCHITECTURE
 
 ```
-SVACS Acoustic Node (perception_event)
-        ↓
-SVACS Adapter (Input Mapping)
-        ↓
-NICAI Validation Layer (Reuse)
-        ↓
-Sanskar Simplified Intelligence
-        ↓
-State Engine (Raj)
-        ↓
-Bucket Logging + Telemetry (InsightFlow)
+Perception Event
+      ↓
+NICAI Signal Mapping (Direct Mapping)
+      ↓
+NICAI Validation Layer
+      ↓
+Sanskar Intelligence Layer
+      ↓
+State Engine (Downstream)
+      ↓
+Bucket Logging + Telemetry
 ```
 
 ---
 
 ## ⚙️ MODULES OVERVIEW
 
-### 1️⃣ SVACS Adapter
+### 1️⃣ Input Layer (Perception Event)
 
-**File:** `svacs_adapter.py`
+Accepted fields:
 
-* Converts `perception_event → NICAI signal`
-* Mapping:
+- `trace_id`
+- `vessel_type`
+- `confidence_score`
+- `dominant_freq_hz`
+- `anomaly_flag`
 
-| SVACS Field      | NICAI Field          |
-| ---------------- | -------------------- |
-| vessel.type      | asset_id             |
-| confidence_score | value                |
-| timestamp        | timestamp            |
-| source           | "svacs"              |
-| signal_type      | "acoustic_detection" |
-| feature_type     | "acoustic"           |
+### 🔴 STRICT RULES
 
-* Generates deterministic `trace_id`
+- No new `trace_id` generated
+- Input structure not modified
 
 ---
 
-### 2️⃣ NICAI Validation Layer (REUSED)
+### 2️⃣ NICAI Signal Mapping
 
-**File:** `validator.py`
-
-Validation includes:
-
-* Required fields check
-* Schema integrity
-* confidence_score ∈ [0,1]
-* dataset validation
-
-### 🔴 STRICT RULE:
-
-* If **INVALID → REJECT + STOP PIPELINE**
-* MUST NOT pass forward
-
-### Output Format:
+Converted into internal signal:
 
 ```json
 {
-  "signal_id": "E1",
+  "trace_id": "T1",
+  "signal_id": "T1",
+  "value": 0.8,
+  "asset_id": "cargo",
+  "feature_type": "acoustic",
+  "dataset_id": "svacs"
+}
+```
+
+---
+
+### 3️⃣ NICAI Validation Layer (Reused)
+
+**File:** `validator.py`
+
+Validation checks:
+
+- Required fields present
+- confidence_score ∈ [0,1]
+- Dataset validity
+- Schema correctness
+
+### Output:
+
+```json
+{
+  "signal_id": "T1",
   "status": "ALLOW",
   "confidence_score": 0.8,
-  "trace_id": "...",
+  "trace_id": "T1",
   "reason": "Valid signal"
 }
 ```
 
-Allowed statuses:
+### ✅ Important Behavior
 
-* `ALLOW`
-* `FLAG`
-* `REJECT`
+- Status can be: `ALLOW` or `FLAG`
+- ❌ No hard blocking
+- ❌ No pipeline stop
+- ✔ Invalid cases are logged but flow continues
 
 ---
 
-### 3️⃣ Sanskar Simplified Intelligence
+### 4️⃣ Sanskar Intelligence Layer
 
 **File:** `sanskar_simple.py`
 
-### 🎯 Deterministic Risk Rules
+#### 🎯 Risk Mapping (Deterministic)
 
 | Confidence | Risk Level |
-| ---------- | ---------- |
-| ≥ 0.75     | LOW        |
-| 0.5 – 0.75 | MEDIUM     |
-| 0.3 – 0.5  | HIGH       |
-| < 0.3      | CRITICAL   |
+|------------|-----------|
+| ≥ 0.75     | LOW       |
+| 0.5–0.75   | MEDIUM    |
+| 0.3–0.5    | HIGH      |
+| < 0.3      | CRITICAL  |
 
 ---
 
-### 🚨 Anomaly Rules
+#### 🚨 Anomaly Rules
 
-* vessel_type == "unknown" → anomaly = TRUE
-* upstream inconsistency flag → anomaly = TRUE
+- `vessel_type == "unknown"` → anomaly = TRUE  
+- `metadata.anomaly_flag == True` → anomaly = TRUE  
+
+✔ If anomaly = TRUE → risk overridden to **CRITICAL**
 
 ---
 
@@ -133,58 +148,47 @@ Allowed statuses:
 
 ```json
 {
-  "trace_id": "...",
+  "trace_id": "T1",
   "vessel_type": "cargo",
   "confidence": 0.8,
   "risk_level": "LOW",
   "anomaly_flag": false,
-  "explanation": "High confidence acoustic classification — low risk"
-}
-```
-
-✔ Explanation is human-readable (MANDATORY)
-
----
-
-### 4️⃣ State Engine Output
-
-* Sends `intelligence_event` directly
-* No transformation
-* No delay
-
----
-
-### 5️⃣ Bucket Logging System (MANDATORY)
-
-Logs ALL:
-
-* Valid events
-* Invalid events
-* Intelligence outputs
-
-### Format:
-
-```json
-{
-  "trace_id": "...",
-  "input": {...},
-  "output": {...},
-  "timestamp": "...",
-  "stage": "validation/intelligence"
+  "explanation": "High confidence acoustic classification of cargo vessel — low risk"
 }
 ```
 
 ---
 
-### 6️⃣ Telemetry (InsightFlow)
+### 5️⃣ State Engine Output
 
-Passive emission only:
+- Direct forwarding of `intelligence_event`
+- No transformation
+- No delay
 
-* validation_result
-* risk_level
-* latency
+---
 
-✔ No decision logic here
+### 6️⃣ Bucket Logging (MANDATORY)
+
+Logs include:
+
+- Input signal
+- Validation result
+- Intelligence output
+- trace_id
+- timestamp
+- processing stage
+
+---
+
+### 7️⃣ Telemetry (Passive)
+
+Captured:
+
+- validation status
+- risk_level
+- pipeline activity
+
+✔ No decision-making logic
 
 ---
 
@@ -192,47 +196,44 @@ Passive emission only:
 
 ### ✔ Valid Cases
 
-* High confidence vessel (LOW risk)
-* Medium confidence (MEDIUM risk)
-* Low confidence (HIGH risk)
-
-### ❌ Invalid Cases
-
-* Missing required fields
-* Invalid schema
-* Out-of-range confidence
+- High confidence → LOW risk
+- Medium confidence → MEDIUM risk
+- Low confidence → HIGH risk
 
 ### 🚨 Edge Cases
 
-* Unknown vessel → CRITICAL + anomaly_flag = TRUE
-* Very low confidence (<0.3)
-* Inconsistent input (if flagged)
+- Unknown vessel → CRITICAL + anomaly
+- Very low confidence → CRITICAL
+- anomaly_flag = TRUE → CRITICAL override
+
+### ⚠️ Invalid Cases
+
+- Missing fields
+- Invalid schema
+
+✔ Logged but pipeline continues
 
 ---
 
-## 📊 PIPELINE EXECUTION FLOW
+## 📊 LIVE PIPELINE FLOW
 
 ```
-Event
-→ Adapter
-→ Validation (ALLOW / REJECT)
-   → if REJECT → STOP
+Perception Event
+→ NICAI Validation (ALLOW / FLAG)
 → Sanskar Intelligence
-→ State Engine
-→ Bucket + Telemetry
+→ State Engine Output
 ```
 
 ---
 
 ## 🔁 TRACEABILITY
 
-* Single `trace_id` generated at adapter stage
-* Preserved across:
-
-  * validation
-  * intelligence
-  * output
-  * logging
+- Same `trace_id` preserved across:
+  - input
+  - validation
+  - intelligence
+  - output
+  - logging
 
 ---
 
@@ -240,10 +241,9 @@ Event
 
 ```
 nicai_validation_layer/
-├── svacs_adapter.py
 ├── validator.py
 ├── sanskar_simple.py
-├── pipeline.py
+├── live_pipeline.py
 ├── schemas.py
 ├── dataset_registry.py
 ├── utils.py
@@ -262,66 +262,55 @@ nicai_validation_layer/
 ## 🚀 HOW TO RUN
 
 ```bash
-python test_pipeline.py
-python test_svacs_flow.py
+python live_pipeline.py
 ```
 
 ---
 
 ## 🧠 DESIGN PRINCIPLES
 
-* ✔ Deterministic execution
-* ✔ No ML / AI dependency
-* ✔ Modular pipeline
-* ✔ Stateless validation
-* ✔ End-to-end traceability
-* ✔ Real-time ready
+- ✔ Deterministic system
+- ✔ No ML dependency
+- ✔ Real-time processing
+- ✔ Modular architecture
+- ✔ Stateless validation
+- ✔ Full traceability
 
 ---
 
 ## 📡 OUTPUT TARGETS
 
-* State Engine (Raj)
-* Bucket Logging System
-* InsightFlow Telemetry
+- State Engine
+- Bucket Logging System
+- Telemetry System
 
 ---
 
 ## ✅ SUCCESS CRITERIA (ACHIEVED)
 
-* ✔ perception_event accepted and processed
-* ✔ invalid inputs rejected and stopped
-* ✔ risk_level computed correctly
-* ✔ anomaly_flag triggered correctly
-* ✔ trace_id preserved end-to-end
-* ✔ output delivered to State Engine
-* ✔ bucket logging implemented
-
----
-
-## ❌ FAILURE CONDITIONS (AVOIDED)
-
-* ❌ NICAI not rebuilt
-* ❌ No ML logic used
-* ❌ No schema redesign
-* ❌ No missing trace_id
-* ❌ No unclear explanation
+- ✔ perception_event accepted
+- ✔ validation applied correctly
+- ✔ intelligence_event generated
+- ✔ risk mapping correct
+- ✔ anomaly handled correctly
+- ✔ explanation generated
+- ✔ trace_id preserved
+- ✔ no pipeline blocking
+- ✔ no silent failures
 
 ---
 
 ## 📌 FINAL STATUS
 
-🚀 **SYSTEM STATUS: COMPLETE + DEMO READY + SUBMISSION READY**
+🚀 **SYSTEM STATUS: COMPLETE + LIVE INTEGRATED + DEMO READY**
 
 ---
 
 ## 👨‍💻 SYSTEM NOTE
 
-This pipeline demonstrates:
+This system demonstrates:
 
-* Deterministic intelligence generation
-* Event-driven architecture
-* Real-time acoustic signal processing (simulated)
-* Strict validation-first pipeline design
-
----
+- Event-driven pipeline design
+- Deterministic intelligence generation
+- Real-time processing architecture
+- Explainable and traceable outputs
