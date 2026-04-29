@@ -7,18 +7,18 @@ try:
     from bucket_emitter import emit_bucket_artifact
     from telemetry_emitter import emit_telemetry
 except ImportError:
-    def emit_bucket_artifact(x): pass 
+    def emit_bucket_artifact(x): pass
     def emit_telemetry(a, b): pass
 
 
 # -------------------------------
-# STANDARD REJECT FORMAT (STRICT)
+# SAFE FLAG FORMAT (NO HARD REJECT)
 # -------------------------------
-def build_reject(reason, trace_id=None, signal=None):
+def build_flag(reason, trace_id=None, signal=None):
     result = {
         "signal_id": signal.get("signal_id") if isinstance(signal, dict) else None,
-        "status": "REJECT",
-        "confidence_score": 0.0,
+        "status": "FLAG",  # ✅ ALWAYS FLAG (NO REJECT)
+        "confidence_score": 0.5,
         "trace_id": trace_id or "TRACE_UNKNOWN",
         "reason": str(reason)
     }
@@ -40,9 +40,9 @@ def validate_signal(signal):
 
     try:
         if not isinstance(signal, dict):
-            return build_reject("Invalid signal format")
+            return build_flag("Invalid signal format")
 
-        # ✅ FIX: USE EXISTING TRACE ID
+        # ✅ USE EXISTING TRACE ID (DO NOT GENERATE NEW)
         trace_id = signal.get("trace_id", "TRACE_UNKNOWN")
 
         # -------------------------------
@@ -50,7 +50,7 @@ def validate_signal(signal):
         # -------------------------------
         for field in required_fields:
             if field not in signal or signal.get(field) in [None, ""]:
-                return build_reject(f"Missing field: {field}", trace_id, signal)
+                return build_flag(f"Missing field: {field}", trace_id, signal)
 
         # -------------------------------
         # DATASET CHECK
@@ -58,12 +58,12 @@ def validate_signal(signal):
         dataset_id = signal.get("dataset_id")
 
         if not isinstance(dataset_id, (str, int)):
-            return build_reject("Invalid dataset_id type", trace_id, signal)
+            return build_flag("Invalid dataset_id type", trace_id, signal)
 
         dataset = get_dataset(dataset_id)
 
         if not isinstance(dataset, dict):
-            return build_reject("Dataset not registered", trace_id, signal)
+            return build_flag("Dataset not registered", trace_id, signal)
 
         # -------------------------------
         # DATASET STATUS
@@ -90,11 +90,12 @@ def validate_signal(signal):
         feature = str(signal.get("feature_type", "")).lower()
 
         if not isinstance(value, (int, float)):
-            return build_reject("Invalid value type", trace_id, signal)
+            return build_flag("Invalid value type", trace_id, signal)
 
         # -------------------------------
-        # RULE LOGIC (KEEP SIMPLE)
+        # RULE LOGIC
         # -------------------------------
+
         if feature == "temperature":
             if value >= 35:
                 status = "FLAG"
@@ -126,9 +127,9 @@ def validate_signal(signal):
                 reason = "Normal traffic"
 
         else:
-            # ✅ Your SVACS acoustic case will come here
+            # ✅ SVACS ACOUSTIC CASE
             status = "ALLOW"
-            confidence = 0.8
+            confidence = float(value)   # dynamic confidence
             reason = "Valid signal"
 
         # -------------------------------
@@ -136,7 +137,7 @@ def validate_signal(signal):
         # -------------------------------
         result = {
             "signal_id": signal.get("signal_id"),
-            "status": status,
+            "status": status,   # ONLY ALLOW / FLAG
             "confidence_score": confidence,
             "trace_id": trace_id,
             "reason": reason
@@ -149,7 +150,7 @@ def validate_signal(signal):
         return result
 
     except Exception as e:
-        return build_reject(str(e), None, signal)
+        return build_flag(str(e), None, signal)
 
 
 # -------------------------------
@@ -160,7 +161,7 @@ def validate_batch(signals):
     try:
         if not isinstance(signals, list):
             return {
-                "status": "REJECT",
+                "status": "FLAG",
                 "reason": "Input must be list",
                 "trace_id": None
             }
@@ -177,7 +178,7 @@ def validate_batch(signals):
 
     except Exception as e:
         return {
-            "status": "REJECT",
+            "status": "FLAG",
             "reason": str(e),
             "trace_id": None
         }
@@ -191,7 +192,7 @@ def get_validated_signals(signals):
     try:
         batch = validate_batch(signals)
 
-        if batch.get("status") == "REJECT":
+        if batch.get("status") == "FLAG":
             return batch
 
         return [
@@ -201,7 +202,7 @@ def get_validated_signals(signals):
 
     except Exception as e:
         return {
-            "status": "REJECT",
+            "status": "FLAG",
             "reason": str(e),
             "trace_id": None
         }
