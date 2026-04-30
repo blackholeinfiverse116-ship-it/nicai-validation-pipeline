@@ -4,7 +4,7 @@
 
 ## 📌 Project Name
 
-**NICAI + Sanskar Deterministic Intelligence Layer for SVACS Perception Events**
+**NICAI + Sanskar Deterministic Intelligence Layer for SVACS Perception Events** 
 
 ---
 
