@@ -4,7 +4,7 @@ from svacs_adapter import prepare_signal
 from validator import validate_signal
 from sanskar_simple import generate_intelligence
 
-
+ 
 # -----------------------------
 # STATE ENGINE STUB
 # -----------------------------
