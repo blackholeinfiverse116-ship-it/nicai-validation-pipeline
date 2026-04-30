@@ -3,7 +3,7 @@ from dataset_registry import get_dataset
 from utils import validate_output_schema
 
 # OPTIONAL SAFE IMPORTS
-try:
+try: 
     from bucket_emitter import emit_bucket_artifact
     from telemetry_emitter import emit_telemetry
 except ImportError:
