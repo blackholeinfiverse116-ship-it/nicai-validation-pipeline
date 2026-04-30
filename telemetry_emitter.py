@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime 
 
 
 def emit_telemetry(signal, result):
