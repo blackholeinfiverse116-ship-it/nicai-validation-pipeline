@@ -2,7 +2,7 @@ import hashlib
 import json
 
 # -------------------------------
-# SAFE STRING CONVERTER
+# SAFE STRING CONVERTER 
 # -------------------------------
 def to_safe_string(value):
     try:
