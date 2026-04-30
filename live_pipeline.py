@@ -5,7 +5,7 @@ from sanskar_simple import analyze_signal
 def process_perception_event(event):
 
     print("\n-------------------------------")
-
+ 
     # STEP 1: ACCEPT RAW INPUT (NO CHANGE)
     print("📥 Perception Event:", event)
 
